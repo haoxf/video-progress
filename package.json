@@ -1,0 +1,13 @@
+{
+  "name": "video-progress",
+  "version": "1.0.0",
+  "description": "A Tampermonkey script that shows a progress bar for fullscreen videos",
+  "main": "video-progress.user.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/tampermonkey": "^4.0.0"
+  }
+} 
