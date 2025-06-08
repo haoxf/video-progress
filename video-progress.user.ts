@@ -113,15 +113,27 @@
 
         // 设置定时器更新进度
         progressInterval = window.setInterval(() => {
-            if (video === currentVideo && video.readyState >= 2) {
+            if (video === currentVideo) {
                 updateProgress(video);
                 updateBuffered(video);
             }
         }, 100);
+
+        // 添加视频事件监听
+        video.addEventListener('play', () => updateProgress(video));
+        video.addEventListener('pause', () => updateProgress(video));
+        video.addEventListener('seeking', () => updateProgress(video));
+        video.addEventListener('seeked', () => updateProgress(video));
     }
 
     // 停止监听视频进度
     function stopVideoProgress() {
+        if (currentVideo) {
+            currentVideo.removeEventListener('play', () => updateProgress(currentVideo!));
+            currentVideo.removeEventListener('pause', () => updateProgress(currentVideo!));
+            currentVideo.removeEventListener('seeking', () => updateProgress(currentVideo!));
+            currentVideo.removeEventListener('seeked', () => updateProgress(currentVideo!));
+        }
         resetProgress();
         currentVideo = null;
     }
@@ -147,7 +159,7 @@
     }
 
     function updateProgress(video: HTMLVideoElement) {
-        if (!video.duration || isNaN(video.duration) || video.readyState < 2) {
+        if (!video.duration || isNaN(video.duration)) {
             progressBar.style.width = '0';
             return;
         }
