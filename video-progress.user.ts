@@ -11,7 +11,8 @@
 (function () {
     'use strict';
 
-    let lastVideo: HTMLVideoElement | null = null;
+    let currentVideo: HTMLVideoElement | null = null;
+    let progressInterval: number | null = null;
 
     // 创建缓存进度条容器
     const progressContainer = document.createElement('div');
@@ -57,51 +58,96 @@
     progressContainer.appendChild(bufferedBar);
     progressContainer.appendChild(progressBar);
 
+    // 重置进度条状态
+    function resetProgress() {
+        progressBar.style.width = '0';
+        bufferedBar.style.width = '0';
+        if (progressInterval) {
+            clearInterval(progressInterval);
+            progressInterval = null;
+        }
+    }
+
+    // 查找视频元素的函数
+    function findVideoElement(element: Element): HTMLVideoElement | null {
+        // 如果当前元素是视频，直接返回
+        if (element instanceof HTMLVideoElement) {
+            return element;
+        }
+
+        // 在当前元素中查找视频
+        const videos = element.querySelectorAll('video');
+        if (videos.length === 0) {
+            return null;
+        }
+
+        // 优先选择正在播放的视频
+        for (const video of videos) {
+            if (!video.paused && video.readyState >= 2) {
+                return video;
+            }
+        }
+
+        // 如果没有正在播放的视频，选择第一个可见的视频
+        for (const video of videos) {
+            if (video.offsetParent !== null) {
+                return video;
+            }
+        }
+
+        // 如果都没有，返回第一个视频
+        return videos[0];
+    }
+
+    // 开始监听视频进度
+    function startVideoProgress(video: HTMLVideoElement) {
+        // 重置之前的状态
+        resetProgress();
+        
+        // 更新当前视频
+        currentVideo = video;
+
+        // 立即更新一次进度
+        updateProgress(video);
+        updateBuffered(video);
+
+        // 设置定时器更新进度
+        progressInterval = window.setInterval(() => {
+            if (video === currentVideo && video.readyState >= 2) {
+                updateProgress(video);
+                updateBuffered(video);
+            }
+        }, 100);
+    }
+
+    // 停止监听视频进度
+    function stopVideoProgress() {
+        resetProgress();
+        currentVideo = null;
+    }
+
     function handleFullscreenChange() {
         const fsElement = document.fullscreenElement || (document as any).webkitFullscreenElement;
         if (fsElement) {
-            // 查找全屏元素下的 video
-            let video: HTMLVideoElement | null = null;
-            if (fsElement.tagName === 'VIDEO') {
-                video = fsElement as HTMLVideoElement;
-            } else {
-                video = fsElement.querySelector('video');
-            }
+            // 查找视频元素
+            const video = findVideoElement(fsElement);
+            
             if (video) {
                 // 插入进度条到全屏元素
                 fsElement.appendChild(progressContainer);
                 progressContainer.style.display = 'block';
-                updateProgress(video);
-                updateBuffered(video);
-                // 解绑上一个 video 的事件
-                if (lastVideo && lastVideo !== video) {
-                    lastVideo.removeEventListener('timeupdate', updateHandler);
-                    lastVideo.removeEventListener('progress', bufferedHandler);
-                }
-                lastVideo = video;
-                video.addEventListener('timeupdate', updateHandler);
-                video.addEventListener('progress', bufferedHandler);
+
+                // 开始监听新视频的进度
+                startVideoProgress(video);
             }
         } else {
             progressContainer.style.display = 'none';
-            if (lastVideo) {
-                lastVideo.removeEventListener('timeupdate', updateHandler);
-                lastVideo.removeEventListener('progress', bufferedHandler);
-                lastVideo = null;
-            }
+            stopVideoProgress();
         }
     }
 
-    function updateHandler(e: Event) {
-        updateProgress(e.target as HTMLVideoElement);
-    }
-
-    function bufferedHandler(e: Event) {
-        updateBuffered(e.target as HTMLVideoElement);
-    }
-
     function updateProgress(video: HTMLVideoElement) {
-        if (!video.duration) {
+        if (!video.duration || isNaN(video.duration) || video.readyState < 2) {
             progressBar.style.width = '0';
             return;
         }
@@ -110,7 +156,7 @@
     }
 
     function updateBuffered(video: HTMLVideoElement) {
-        if (!video.duration) {
+        if (!video.duration || isNaN(video.duration) || video.readyState < 2) {
             bufferedBar.style.width = '0';
             return;
         }
@@ -124,6 +170,18 @@
         }
     }
 
+    // 监听全屏变化
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+    // 定期检查视频是否发生变化
+    setInterval(() => {
+        const fsElement = document.fullscreenElement || (document as any).webkitFullscreenElement;
+        if (fsElement) {
+            const video = findVideoElement(fsElement);
+            if (video && video !== currentVideo) {
+                startVideoProgress(video);
+            }
+        }
+    }, 500);
 })(); 
