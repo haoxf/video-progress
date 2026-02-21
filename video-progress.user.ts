@@ -13,6 +13,8 @@
 
     let currentVideo: HTMLVideoElement | null = null;
     let progressInterval: number | null = null;
+    let isDragging = false;
+    let isHovering = false;
 
     // 创建缓存进度条容器
     const progressContainer = document.createElement('div');
@@ -23,9 +25,10 @@
         width: 100%;
         height: 0.3vw;
         min-height: 3px;
-        max-height: 6px;
+        max-height: 3px;
         z-index: 999999;
-        pointer-events: none;
+        pointer-events: auto;
+        cursor: pointer;
         background: rgba(0, 0, 0, 0.5);
     `;
 
@@ -54,9 +57,81 @@
         box-shadow: 0 0 10px rgba(0, 120, 255, 0.3);
     `;
 
+    // 创建进度条滑块
+    const progressThumb = document.createElement('div');
+    progressThumb.style.cssText = `
+        position: absolute;
+        right: -6px;
+        top: 50%;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: rgba(0, 180, 255, 1);
+        transform: translateY(-50%) scale(0);
+        transition: transform 0.1s;
+        box-shadow: 0 0 4px rgba(0,0,0,0.5);
+        pointer-events: none;
+        z-index: 1000000;
+    `;
+    progressBar.appendChild(progressThumb);
+
     // 将进度条添加到容器中
     progressContainer.appendChild(bufferedBar);
     progressContainer.appendChild(progressBar);
+
+    function showThumb() {
+        progressThumb.style.transform = 'translateY(-50%) scale(1)';
+    }
+
+    function hideThumb() {
+        if (!isDragging) {
+            progressThumb.style.transform = 'translateY(-50%) scale(0)';
+        }
+    }
+
+    progressContainer.addEventListener('mouseenter', () => {
+        isHovering = true;
+        showThumb();
+    });
+
+    progressContainer.addEventListener('mouseleave', () => {
+        isHovering = false;
+        hideThumb();
+    });
+
+    // 进度条交互逻辑
+    function handleProgressUpdate(e: MouseEvent) {
+        if (!currentVideo || !currentVideo.duration) return;
+        
+        const rect = progressContainer.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const percentage = Math.max(0, Math.min(1, x / rect.width));
+        
+        currentVideo.currentTime = currentVideo.duration * percentage;
+        progressBar.style.width = `${percentage * 100}%`;
+    }
+
+    progressContainer.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        progressBar.style.transition = 'none'; // 拖拽时禁用过渡效果，防止延迟
+        showThumb();
+        handleProgressUpdate(e);
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+            e.preventDefault(); // 防止拖拽时选中文本
+            handleProgressUpdate(e);
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
+        progressBar.style.transition = 'width 0.1s linear'; // 恢复过渡效果
+        if (!isHovering) {
+            hideThumb();
+        }
+    });
 
     // 重置进度条状态
     function resetProgress() {
@@ -159,6 +234,7 @@
     }
 
     function updateProgress(video: HTMLVideoElement) {
+        if (isDragging) return;
         if (!video.duration || isNaN(video.duration)) {
             progressBar.style.width = '0';
             return;
